@@ -1,0 +1,5 @@
+# Exemplo de .gitignore
+venv/
+
+*.csv
+*.png
