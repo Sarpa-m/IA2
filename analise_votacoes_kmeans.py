@@ -1,346 +1,385 @@
-# -*- coding: utf-8 -*-
-"""
-Implementação do Pipeline de Análise de Votações com K-Means e Aderência Ideológica
-
-Este script aplica a metodologia descrita para agrupar senadores com base
-em seus padrões de votação e calcular uma métrica de Aderência Ideológica (AI).
-
-Metodologia:
-A. Coleta e Estruturação dos Dados:
-   - Carregamento dos dados (aqui, usamos um exemplo estático).
-   - Mapeamento de votos (Sim: +1, Não: -1, Outros: 0).
-   - Criação da matriz senador-votação.
-B. Modelo de Agrupamento (K-Means):
-   - Uso do K-Means com inicialização 'k-means++'.
-C. Validação e Otimização (K ótimo):
-   - Método do Cotovelo (Inércia/WCSS).
-   - Análise de Silhueta.
-D. Algoritmo de Aderência Ideológica (AI):
-   - Definição do "Voto Esperado" (binarização/trinarização do centróide).
-   - Cálculo da AI via Similaridade de Cosseno.
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from io import StringIO
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
+import warnings
+warnings.filterwarnings('ignore')
 
-# --- A. Coleta e Estruturação dos Dados ---
+# ============================================================================
+# A. COLETA E ESTRUTURAÇÃO DOS DADOS - VERSÃO EXPANDIDA
+# ============================================================================
 
 def carregar_dados_csv(caminho_arquivo: str) -> pd.DataFrame:
-    """
-    Carrega os dados de um arquivo CSV.
-    
-    NOTA: Esta função é usada para ler de um arquivo real.
-    """
+    """Carrega dados de um arquivo CSV real."""
     print(f"Carregando dados de {caminho_arquivo}...")
     try:
-        # Tenta carregar o CSV. 
-        # Ajuste os parâmetros (ex: sep=';') se o seu CSV usar um separador diferente.
         df = pd.read_csv(caminho_arquivo)
         return df
     except FileNotFoundError:
         print(f"Erro: Arquivo não encontrado em '{caminho_arquivo}'")
-        print("Por favor, verifique o caminho e o nome do arquivo.")
-        # Retorna um DataFrame vazio para evitar que o script quebre
         return pd.DataFrame() 
     except Exception as e:
         print(f"Erro ao ler o arquivo CSV: {e}")
         return pd.DataFrame()
 
-def carregar_dados_exemplo() -> pd.DataFrame:
-    """
-    Carrega um conjunto de dados de exemplo.
-    
-    NOTA: Substitua o conteúdo desta função pela sua lógica de
-    coleta de dados da API do Senado para análise real.
-    """
-    # Dados de exemplo fornecidos
-    dados_csv = """codigo_votacao,data_votacao,codigo_parlamentar,nome_parlamentar,partido_parlamentar,uf_parlamentar,sigla_voto,descricao_voto
-6818,2024-02-20T00:00:00,5672,Alan Rick,UNIÃO,AC,Sim,
-6818,2024-02-20T00:00:00,5982,Alessandro Vieira,MDB,SE,AP,Atividade parlamentar
-6818,2024-02-20T00:00:00,5967,Angelo Coronel,PSD,BA,Sim,
-6818,2024-02-20T00:00:00,6009,Astronauta Marcos Pontes,PL,SP,Sim,
-6818,2024-02-20T00:00:00,6350,Augusta Brito,PT,CE,Sim,
-6819,2024-02-21T00:00:00,5672,Alan Rick,UNIÃO,AC,Sim,
-6819,2024-02-21T00:00:00,5982,Alessandro Vieira,MDB,SE,Não,
-6819,2024-02-21T00:00:00,5967,Angelo Coronel,PSD,BA,Sim,
-6819,2024-02-21T00:00:00,6009,Astronauta Marcos Pontes,PL,SP,Não,
-6819,2024-02-21T00:00:00,6350,Augusta Brito,PT,CE,Sim,
-6820,2024-02-22T00:00:00,5672,Alan Rick,UNIÃO,AC,Abstenção,
-6820,2024-02-22T00:00:00,5982,Alessandro Vieira,MDB,SE,Não,
-6820,2024-02-22T00:00:00,5967,Angelo Coronel,PSD,BA,Sim,
-6820,2024-02-22T00:00:00,6009,Astronauta Marcos Pontes,PL,SP,Não,
-6820,2024-02-22T00:00:00,6350,Augusta Brito,PT,CE,Sim,
-"""
-    # Adicionei mais algumas votações fictícias para tornar o exemplo menos trivial
-    
-    return pd.read_csv(StringIO(dados_csv))
-
 def mapear_votos(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Converte votos categóricos em numéricos (Sim: +1, Não: -1, Outros: 0).
+    Converte votos categóricos em numéricos.
+    Sim: +1, Não: -1, Outros: 0
     """
     mapa_votos = {
         'Sim': 1,
-        'Não': -1
+        'Não': -1,
+        'Abstenção': 0,
+        'AP': 0,
+        'Ausência': 0
     }
     
-    # Mapeia Sim/Não e preenche todos os outros (Abstenção, AP, Ausência, etc.) com 0
-    df['voto_numerico'] = df['sigla_voto'].map(mapa_votos).fillna(0)
+    df['voto_numerico'] = df['sigla_voto'].map(mapa_votos).fillna(0).astype(int)
     return df
 
 def criar_matriz_senador_votacao(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Transforma o DataFrame de votos na matriz senador-votação.
-    Linhas: Senadores
-    Colunas: Votações
-    Valores: Voto numérico (1, -1, 0)
+    Transforma o DataFrame em matriz senador-votação.
     """
-    # Usar 'codigo_parlamentar' ou 'nome_parlamentar' como índice
-    # 'codigo_parlamentar' é mais robusto para evitar nomes duplicados
-    
-    # Filtragem de votações substantivas (conforme metodologia [1])
-    # Aqui, precisaríamos de uma lógica para identificar e filtrar votações
-    # procedimentais. Como não temos essa informação, usamos todas.
-    # Ex: df = df[df['tipo_votacao'] == 'substantiva'] 
-    
     print("Criando matriz senador-votação...")
+    
     matriz = df.pivot_table(
-        index='codigo_parlamentar', # Pode usar 'nome_parlamentar'
+        index='codigo_parlamentar',
         columns='codigo_votacao',
         values='voto_numerico',
-        fill_value=0 # Ausência/Não participou da votação = 0
+        fill_value=0
     )
     
-    # Adiciona nomes para referência futura
-    mapa_nomes = df.drop_duplicates('codigo_parlamentar').set_index('codigo_parlamentar')['nome_parlamentar']
-    matriz['nome_parlamentar'] = matriz.index.map(mapa_nomes)
-    matriz = matriz.set_index('nome_parlamentar', append=True).swaplevel(0, 1)
+    # Preservar nomes dos parlamentares
+    mapa_nomes = df.drop_duplicates('codigo_parlamentar').set_index(
+        'codigo_parlamentar'
+    )['nome_parlamentar']
+    
+    mapa_partidos = df.drop_duplicates('codigo_parlamentar').set_index(
+        'codigo_parlamentar'
+    )['partido_parlamentar']
+    
+    matriz.attrs['nomes'] = mapa_nomes
+    matriz.attrs['partidos'] = mapa_partidos
     
     return matriz
 
 def pre_processar(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Executa o pipeline de pré-processamento.
-    """
+    """Pipeline de pré-processamento."""
     df = mapear_votos(df)
     matriz = criar_matriz_senador_votacao(df)
     return matriz
 
-# --- C. Validação e Otimização do Modelo ---
+# ============================================================================
+# B. NORMALIZAÇÃO E ANÁLISE DESCRITIVA
+# ============================================================================
 
-def plotar_validacao_k(k_range: range, inertia_scores: list, silhouette_scores: list):
+def analisar_variancia(matriz: pd.DataFrame) -> dict:
     """
-    Plota os gráficos do Método do Cotovelo e da Análise de Silhueta.
+    Analisa a variância dos dados para entender a estrutura.
     """
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-
-    # 1. Método do Cotovelo (Elbow Method)
-    ax1.plot(k_range, inertia_scores, 'bo-', markerfacecolor='r')
-    ax1.set_xlabel('Número de Clusters (K)')
-    ax1.set_ylabel('Inércia (WCSS)')
-    ax1.set_title('Método do Cotovelo (Elbow)')
-    ax1.grid(True, linestyle='--', alpha=0.6)
-
-    # 2. Análise de Silhueta (Silhouette Analysis)
-    ax2.plot(k_range, silhouette_scores, 'bo-', markerfacecolor='r')
-    ax2.set_xlabel('Número de Clusters (K)')
-    ax2.set_ylabel('Coeficiente de Silhueta Médio')
-    ax2.set_title('Análise de Silhueta')
-    ax2.grid(True, linestyle='--', alpha=0.6)
-
-    plt.suptitle('Validação do Número Ótimo de Clusters (K)', fontsize=16)
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    print("\n" + "="*60)
+    print("ANÁLISE DESCRITIVA DOS DADOS")
+    print("="*60)
     
-    # Salva o gráfico em um arquivo
-    plt.savefig("validacao_k_otimo.png")
-    print("\nGráfico de validação 'validacao_k_otimo.png' salvo.")
-    # plt.show() # Descomente se quiser exibir o gráfico interativamente
-
-def encontrar_k_otimo(matrix: pd.DataFrame, max_k: int = 10) -> int:
-    """
-    Testa diferentes valores de K e plota os gráficos de validação.
-    Retorna o K que maximiza o coeficiente de silhueta.
-    """
-    print(f"Iniciando validação para K... (max_k={max_k})")
+    stats = {
+        'n_parlamentares': matriz.shape[0],
+        'n_votacoes': matriz.shape[1],
+        'sparsidade': (matriz == 0).sum().sum() / (matriz.shape[0] * matriz.shape[1]),
+        'variancia_media': matriz.var(axis=0).mean(),
+        'variancia_total': matriz.var().sum()
+    }
     
-    # Garante que max_k não seja maior que o número de amostras - 1
-    # (Necessário para silhouette_score)
-    n_samples = matrix.shape[0]
-    if n_samples <= max_k:
-        max_k = n_samples - 1 
-        print(f"Aviso: max_k ajustado para {max_k} (n_samples - 1) para permitir cálculo da silhueta.")
+    print(f"Número de parlamentares: {stats['n_parlamentares']}")
+    print(f"Número de votações: {stats['n_votacoes']}")
+    print(f"Sparsidade (% de zeros): {stats['sparsidade']*100:.2f}%")
+    print(f"Variância média por votação: {stats['variancia_media']:.4f}")
+    print(f"Variância total: {stats['variancia_total']:.4f}")
+    
+    return stats
 
+def normalizar_dados(matriz: pd.DataFrame) -> np.ndarray:
+    """
+    Normaliza os dados usando StandardScaler.
+    Crucial para K-means convergir melhor.
+    """
+    print("\nNormalizando dados...")
+    scaler = StandardScaler()
+    dados_normalizados = scaler.fit_transform(matriz)
+    print(f"Dados normalizados: média={dados_normalizados.mean():.6f}, "
+          f"std={dados_normalizados.std():.6f}")
+    return dados_normalizados
+
+# ============================================================================
+# C. VALIDAÇÃO E OTIMIZAÇÃO 
+# ============================================================================
+
+def plotar_metricas_validacao(k_range: range, metricas: dict):
+    """
+    Plota múltiplas métricas de validação.
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    
+    # 1. Método do Cotovelo
+    axes[0, 0].plot(k_range, metricas['inertia'], 'bo-', linewidth=2, markersize=8)
+    axes[0, 0].set_xlabel('Número de Clusters (K)', fontsize=11)
+    axes[0, 0].set_ylabel('Inércia (WCSS)', fontsize=11)
+    axes[0, 0].set_title('Método do Cotovelo', fontsize=12, fontweight='bold')
+    axes[0, 0].grid(True, linestyle='--', alpha=0.6)
+    
+    # 2. Coeficiente de Silhueta
+    axes[0, 1].plot(k_range, metricas['silhueta'], 'ro-', linewidth=2, markersize=8)
+    axes[0, 1].set_xlabel('Número de Clusters (K)', fontsize=11)
+    axes[0, 1].set_ylabel('Coeficiente de Silhueta', fontsize=11)
+    axes[0, 1].set_title('Análise de Silhueta (maior é melhor)', fontsize=12, fontweight='bold')
+    axes[0, 1].grid(True, linestyle='--', alpha=0.6)
+    
+    # 3. Índice de Davies-Bouldin
+    axes[1, 0].plot(k_range, metricas['davies_bouldin'], 'go-', linewidth=2, markersize=8)
+    axes[1, 0].set_xlabel('Número de Clusters (K)', fontsize=11)
+    axes[1, 0].set_ylabel('Davies-Bouldin Index', fontsize=11)
+    axes[1, 0].set_title('Davies-Bouldin (menor é melhor)', fontsize=12, fontweight='bold')
+    axes[1, 0].grid(True, linestyle='--', alpha=0.6)
+    
+    # 4. Índice de Calinski-Harabasz
+    axes[1, 1].plot(k_range, metricas['calinski_harabasz'], 'mo-', linewidth=2, markersize=8)
+    axes[1, 1].set_xlabel('Número de Clusters (K)', fontsize=11)
+    axes[1, 1].set_ylabel('Calinski-Harabasz Index', fontsize=11)
+    axes[1, 1].set_title('Calinski-Harabasz (maior é melhor)', fontsize=12, fontweight='bold')
+    axes[1, 1].grid(True, linestyle='--', alpha=0.6)
+    
+    plt.suptitle('Métricas de Validação de Clustering', fontsize=14, fontweight='bold')
+    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.savefig("validacao_k_otimo_completa.png", dpi=300, bbox_inches='tight')
+    print("Gráfico de validação salvo como 'validacao_k_otimo_completa.png'")
+    plt.show()
+
+def encontrar_k_otimo_melhorado(dados_normalizados: np.ndarray, max_k: int = 15) -> tuple:
+    """
+    Testa diferentes valores de K usando múltiplas métricas.
+    Retorna K ótimo e um dicionário com todas as métricas.
+    """
+    print(f"\n{'='*60}")
+    print("DETERMINANDO K ÓTIMO")
+    print(f"{'='*60}")
+    
+    n_samples = dados_normalizados.shape[0]
+    
+    # Limitar max_k a um valor razoável
+    max_k = min(max_k, n_samples // 2)
+    
     if max_k < 2:
-        print("Aviso: Dados insuficientes para clusterização (menos de 2 amostras). Retornando K=1.")
-        return 1
-
+        print("Aviso: Dados insuficientes para clusterização")
+        return 2, {}
+    
     k_range = range(2, max_k + 1)
-    inertia_scores = []
-    silhouette_scores = []
-
+    metricas = {
+        'inertia': [],
+        'silhueta': [],
+        'davies_bouldin': [],
+        'calinski_harabasz': []
+    }
+    
+    print(f"Testando K de 2 até {max_k}...\n")
+    print(f"{'K':<4} {'Inércia':<12} {'Silhueta':<12} {'Davies-B':<12} {'Calinski-H':<12}")
+    print("-" * 52)
+    
     for k in k_range:
-        kmeans = KMeans(n_clusters=k, init='k-means++', random_state=42, n_init=10)
-        kmeans.fit(matrix)
+        kmeans = KMeans(n_clusters=k, init='k-means++', 
+                       random_state=42, n_init=20, max_iter=500)
+        kmeans.fit(dados_normalizados)
         
-        # Inércia (WCSS) para o Método do Cotovelo
-        inertia_scores.append(kmeans.inertia_)
-        
-        # Coeficiente de Silhueta
         labels = kmeans.labels_
-        score = silhouette_score(matrix, labels)
-        silhouette_scores.append(score)
-        print(f"  K={k}: Inércia={kmeans.inertia_:.2f}, Silhueta={score:.4f}")
-
-    # Plotar os gráficos
-    plotar_validacao_k(k_range, inertia_scores, silhouette_scores)
-    
-    # Escolher o K que maximiza a silhueta
-    if not silhouette_scores:
-        return 1
         
-    k_otimo = k_range[np.argmax(silhouette_scores)]
-    print(f"\nK ótimo identificado (maximizando silhueta): {k_otimo}")
+        # Calcular métricas
+        inertia = kmeans.inertia_
+        silhueta = silhouette_score(dados_normalizados, labels)
+        davies_bouldin = davies_bouldin_score(dados_normalizados, labels)
+        calinski_harabasz = calinski_harabasz_score(dados_normalizados, labels)
+        
+        metricas['inertia'].append(inertia)
+        metricas['silhueta'].append(silhueta)
+        metricas['davies_bouldin'].append(davies_bouldin)
+        metricas['calinski_harabasz'].append(calinski_harabasz)
+        
+        print(f"{k:<4} {inertia:<12.2f} {silhueta:<12.4f} {davies_bouldin:<12.4f} {calinski_harabasz:<12.2f}")
     
-    return k_otimo
+    # Plotar gráficos
+    plotar_metricas_validacao(k_range, metricas)
+    
+    # Escolher K baseado em múltiplas métricas (abordagem ensemble)
+    silhueta_scores = np.array(metricas['silhueta'])
+    k_silhueta = k_range[np.argmax(silhueta_scores)]
+    
+    davies_scores = np.array(metricas['davies_bouldin'])
+    k_davies = k_range[np.argmin(davies_scores)]
+    
+    calinski_scores = np.array(metricas['calinski_harabasz'])
+    k_calinski = k_range[np.argmax(calinski_scores)]
+    
+    # Votação: qual K aparece mais?
+    votos = [k_silhueta, k_davies, k_calinski]
+    k_otimo = max(set(votos), key=votos.count)
+    
+    print(f"\n{'='*60}")
+    print("RECOMENDAÇÕES:")
+    print(f"{'='*60}")
+    print(f"K sugerido por Silhueta:       {k_silhueta}")
+    print(f"K sugerido por Davies-Bouldin: {k_davies}")
+    print(f"K sugerido por Calinski-H:    {k_calinski}")
+    print(f"\n>>> K ÓTIMO (CONSENSO): {k_otimo} <<<")
+    print(f"{'='*60}\n")
+    
+    return k_otimo, metricas
 
-# --- D. Algoritmo de Classificação para Aderência Ideológica ---
+# ============================================================================
+# D. ALGORITMO DE CLASSIFICAÇÃO PARA ADERÊNCIA IDEOLÓGICA
+# ============================================================================
 
-def definir_voto_esperado(centroids: np.ndarray, tau: float = 0.05) -> np.ndarray:
+def definir_voto_esperado(centroids: np.ndarray, tau: float = 0.1) -> np.ndarray:
     """
-    Trinariza os centróides (μj) para definir o Voto Esperado (ˆvj).
-    
-    ˆv(i)j =
-        +1 se μ(i)j > τ
-        -1 se μ(i)j < -τ
-         0 se -τ <= μ(i)j <= τ
+    Trinariza os centróides para definir o Voto Esperado.
     """
-    
-    # np.where é eficiente para esta lógica condicional
     votos_esperados = np.where(
         centroids > tau, 1, np.where(centroids < -tau, -1, 0)
     )
     return votos_esperados
 
-def calcular_aderencia_ideologica(matrix: pd.DataFrame, k_otimo: int) -> pd.DataFrame:
+def calcular_aderencia_ideologica(dados_normalizados: np.ndarray, 
+                                  matriz_original: pd.DataFrame, 
+                                  k_otimo: int) -> pd.DataFrame:
     """
-    Executa o K-Means final e calcula a Aderência Ideológica (AI)
-    para cada senador.
+    Executa K-Means final e calcula a Aderência Ideológica.
     """
-    print(f"\nCalculando K-Means final com K={k_otimo}...")
+    print(f"\n{'='*60}")
+    print(f"CLUSTERING FINAL COM K={k_otimo}")
+    print(f"{'='*60}\n")
     
-    kmeans_final = KMeans(n_clusters=k_otimo, init='k-means++', random_state=42, n_init=10)
-    clusters = kmeans_final.fit_predict(matrix)
+    kmeans_final = KMeans(n_clusters=k_otimo, init='k-means++', 
+                         random_state=42, n_init=30, max_iter=500)
+    clusters = kmeans_final.fit_predict(dados_normalizados)
     
-    # Centróides (μ)
     centroids = kmeans_final.cluster_centers_
+    votos_esperados_clusters = definir_voto_esperado(centroids, tau=0.1)
     
-    # 1. Definição do Voto Esperado (ˆv)
-    votos_esperados_clusters = definir_voto_esperado(centroids, tau=0.05)
-    
-    print("Calculando Aderência Ideológica (AI) via Similaridade de Cosseno...")
+    print("Calculando Aderência Ideológica (AI) via Similaridade de Cosseno...\n")
     
     ai_scores = []
-    senadores = matrix.index
     
-    # 2. Cálculo da Aderência Ideológica (AI)
-    for i, (nome_parlamentar, codigo_parlamentar) in enumerate(senadores):
-        # Vetor de voto real do senador (xi)
-        vetor_senador_x = matrix.iloc[i].values.reshape(1, -1)
+    nomes = matriz_original.attrs.get('nomes', {})
+    partidos = matriz_original.attrs.get('partidos', {})
+    
+    for i in range(dados_normalizados.shape[0]):
+        codigo_parlamentar = matriz_original.index[i]
         
-        # Cluster ao qual o senador foi atribuído
+        vetor_senador = dados_normalizados[i].reshape(1, -1)
         cluster_atribuido = clusters[i]
+        vetor_esperado = votos_esperados_clusters[cluster_atribuido].reshape(1, -1)
         
-        # Vetor de voto esperado do cluster ideal (ˆvideal)
-        vetor_esperado_v = votos_esperados_clusters[cluster_atribuido].reshape(1, -1)
+        # Evitar divisão por zero
+        if np.linalg.norm(vetor_senador) == 0 or np.linalg.norm(vetor_esperado) == 0:
+            ai_score = 0.0
+        else:
+            ai_score = cosine_similarity(vetor_senador, vetor_esperado)[0][0]
         
-        # Cálculo da Similaridade de Cosseno
-        # AIi = Similaridade(xi, ˆvideal)
-        ai_score = cosine_similarity(vetor_senador_x, vetor_esperado_v)[0][0]
+        nome = nomes.get(codigo_parlamentar, f"Parlamentar_{codigo_parlamentar}")
+        partido = partidos.get(codigo_parlamentar, "Desconhecido")
         
         ai_scores.append({
             'codigo_parlamentar': codigo_parlamentar,
-            'nome_parlamentar': nome_parlamentar,
+            'nome_parlamentar': nome,
+            'partido': partido,
             'cluster': cluster_atribuido,
-            'aderencia_ideologica (AI)': ai_score
+            'aderencia_ideologica': ai_score
         })
+    
+    df_resultados = pd.DataFrame(ai_scores)
+    
+    # Estatísticas por cluster
+    print("RESUMO POR CLUSTER:")
+    print("-" * 80)
+    for cluster_id in range(k_otimo):
+        cluster_data = df_resultados[df_resultados['cluster'] == cluster_id]
+        print(f"\nCluster {cluster_id} ({len(cluster_data)} membros)")
+        print(f"  Aderência média: {cluster_data['aderencia_ideologica'].mean():.4f}")
+        print(f"  Partidos principais: {cluster_data['partido'].value_counts().head(3).to_dict()}")
+    
+    return df_resultados
 
-    return pd.DataFrame(ai_scores).set_index('nome_parlamentar')
-
-# --- Função Principal ---
+# ============================================================================
+# FUNÇÃO PRINCIPAL
+# ============================================================================
 
 def main():
-    """
-    Executa o pipeline completo de análise.
-    """
+    """Executa o pipeline completo."""
+    
     # A. Coleta e Estruturação
+    print("\n" + "="*60)
+    print("FASE 1: CARREGAMENTO DE DADOS")
+    print("="*60 + "\n")
     
-    # --- MODIFICAÇÃO: Como importar um CSV ---
-    # 1. Comente a linha que usa dados de exemplo:
-    # df_bruto = carregar_dados_exemplo()
+    # Usar dados expandidos
+   # df_bruto = carregar_dados_exemplo_expandido()
+    df_bruto = pd.read_csv("dataset_votacoes_senado_2024-01-01_a_2024-12-31.csv")
     
-    # 2. Descomente a linha abaixo e coloque o nome do seu arquivo CSV:
-    nome_do_seu_arquivo = "dataset_votacoes_senado_2024-01-01_a_2024-12-31.csv" # <-- COLOQUE O NOME DO SEU ARQUIVO AQUI
-    df_bruto = carregar_dados_csv(nome_do_seu_arquivo)
-    
-    # Verifica se os dados foram carregados com sucesso
     if df_bruto.empty:
-        print("Não foi possível carregar os dados. Encerrando o script.")
+        print("Erro: Não foi possível carregar os dados.")
         return
-    # --- FIM DA MODIFICAÇÃO ---
     
-    # NOTA: Filtragem de Votações
-    # A metodologia [1] sugere filtrar votações procedimentais.
-    # Esta etapa deve ser inserida aqui, antes de criar a matriz.
-    # df_filtrado = filtrar_votacoes_substantivas(df_bruto)
-    # matriz_votacoes = pre_processar(df_filtrado)
+    print(f"Dados carregados: {df_bruto.shape[0]} registros de votação")
+    
+    # B. Pré-processamento
+    print("\n" + "="*60)
+    print("FASE 2: PRÉ-PROCESSAMENTO")
+    print("="*60 + "\n")
     
     matriz_votacoes = pre_processar(df_bruto)
+    print(f"Matriz criada: {matriz_votacoes.shape}")
     
-    # Extrai apenas os dados numéricos para o K-Means
-    # (O índice multi-nível 'nome_parlamentar', 'codigo_parlamentar' é mantido)
-    # Linha 307 (Corrigida)
-    matriz_numerica = matriz_votacoes.loc[:, matriz_votacoes.columns.astype(str).str.isnumeric()]
+    # C. Análise Descritiva
+    stats = analisar_variancia(matriz_votacoes)
     
-    print("\n--- Matriz Senador-Votação (Amostra) ---")
-    print(matriz_numerica)
-    print("-" * 50)
+    # D. Normalização
+    dados_normalizados = normalizar_dados(matriz_votacoes)
     
-    # C. Validação e Otimização
-    # (Limitamos o max_k para o exemplo, em dados reais use 10 ou 15)
-    k_otimo = encontrar_k_otimo(matriz_numerica, max_k=10)
+    # E. Validação e Otimização
+    print("\n" + "="*60)
+    print("FASE 3: OTIMIZAÇÃO DO K")
+    print("="*60)
     
-    # Para o dataset de exemplo, k_otimo será trivial (provavelmente 2 ou 3)
-    # Vamos usar os dados de exemplo para encontrar o k
-    n_samples = matriz_numerica.shape[0]
-    #k_otimo = encontrar_k_otimo(matriz_numerica, max_k=n_samples-1)
-
-    if k_otimo <= 1:
-        print("\nNão foi possível realizar o agrupamento (K ótimo <= 1).")
-        print("Verifique se há dados suficientes e variância nos votos.")
-        return
-
-    # D. Cálculo da Aderência Ideológica
-    df_resultados = calcular_aderencia_ideologica(matriz_numerica, k_otimo)
+    k_otimo, metricas = encontrar_k_otimo_melhorado(dados_normalizados, max_k=10)
     
-    print("\n--- Resultados Finais: Aderência Ideológica ---")
-    print(df_resultados.sort_values(by=['cluster', 'aderencia_ideologica (AI)'], ascending=[True, False]))
-    print("-" * 50)
+    # F. Cálculo da Aderência Ideológica
+    df_resultados = calcular_aderencia_ideologica(dados_normalizados, 
+                                                   matriz_votacoes, k_otimo)
+    
+    # G. Resultados
+    print("\n" + "="*60)
+    print("RESULTADOS FINAIS")
+    print("="*60 + "\n")
+    
+    print("Top 15 Parlamentares Mais Alinhados:")
+    print(df_resultados.nlargest(15, 'aderencia_ideologica')[
+        ['nome_parlamentar', 'partido', 'cluster', 'aderencia_ideologica']
+    ].to_string(index=False))
+    
+    print("\n\nTop 15 Parlamentares Menos Alinhados:")
+    print(df_resultados.nsmallest(15, 'aderencia_ideologica')[
+        ['nome_parlamentar', 'partido', 'cluster', 'aderencia_ideologica']
+    ].to_string(index=False))
     
     # Salvar resultados
-    df_resultados.to_csv("resultados_aderencia_ideologica.csv")
-    print("Resultados salvos em 'resultados_aderencia_ideologica.csv'")
-
+    df_resultados.to_csv("resultados_aderencia_ideologica.csv", index=False)
+    print("\n\nResultados salvos em 'resultados_aderencia_ideologica.csv'")
 
 if __name__ == "__main__":
-    # Configura o pandas para mostrar todas as colunas (útil para matrizes largas)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 1000)
+    pd.set_option('display.max_rows', None)
     
     main()
-

@@ -1,3 +1,4 @@
+# coletor_senado.py
 import requests
 import pandas as pd
 import time
@@ -13,8 +14,8 @@ HEADERS = {"Accept": "application/json"}
 
 # Período que queremos analisar
 # [CORREÇÃO] A documentação deste endpoint especifica o formato AAAA-MM-DD
-DATA_INICIO = "2024-01-01"
-DATA_FIM = "2024-12-31"
+DATA_INICIO = "2022-01-01"
+DATA_FIM = "2022-12-31"
 
 # NOTA: A documentação informa que o intervalo entre as datas deve ser de no máximo 1 ano.
 # --------------------
