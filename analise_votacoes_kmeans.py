@@ -39,6 +39,7 @@ def mapear_votos(df: pd.DataFrame) -> pd.DataFrame:
         'Ausência': 0
     }
     
+    # .fillna(0) garante que qualquer outro voto (Obstrução, etc.) vire Nulo
     df['voto_numerico'] = df['sigla_voto'].map(mapa_votos).fillna(0).astype(int)
     return df
 
@@ -233,7 +234,6 @@ def encontrar_k_otimo_melhorado(dados_normalizados: np.ndarray, max_k: int = 15)
     print(f"K sugerido por Davies-Bouldin: {k_davies}")
     print(f"K sugerido por Calinski-H:    {k_calinski}")
     print(f"\n>>> K ÓTIMO (CONSENSO): {k_otimo} <<<")
-    print(f"{'='*60}\n")
     
     return k_otimo, metricas
 
@@ -256,9 +256,6 @@ def calcular_aderencia_ideologica(dados_normalizados: np.ndarray,
     """
     Executa K-Means final e calcula a Aderência Ideológica.
     """
-    print(f"\n{'='*60}")
-    print(f"CLUSTERING FINAL COM K={k_otimo}")
-    print(f"{'='*60}\n")
     
     kmeans_final = KMeans(n_clusters=k_otimo, init='k-means++', 
                          random_state=42, n_init=30, max_iter=500)
@@ -312,28 +309,27 @@ def calcular_aderencia_ideologica(dados_normalizados: np.ndarray,
     return df_resultados
 
 # ============================================================================
-# FUNÇÃO PRINCIPAL
+# FUNÇÃO PRINCIPAL (MODIFICADA PARA O ORQUESTRADOR)
 # ============================================================================
 
-def main():
+def executar_analise_pipeline(nome_arquivo_dados: str):
     """Executa o pipeline completo."""
     
-    # A. Coleta e Estruturação
+    # --- FASE 1: CARREGAMENTO DE DADOS ---
     print("\n" + "="*60)
     print("FASE 1: CARREGAMENTO DE DADOS")
     print("="*60 + "\n")
     
-    # Usar dados expandidos
-   # df_bruto = carregar_dados_exemplo_expandido()
-    df_bruto = pd.read_csv("dataset_votacoes_senado_2024-01-01_a_2024-12-31.csv")
+    df_bruto = carregar_dados_csv(nome_arquivo_dados)
     
     if df_bruto.empty:
         print("Erro: Não foi possível carregar os dados.")
+        print(f"Verifique se o arquivo '{nome_arquivo_dados}' está no mesmo diretório.")
         return
     
     print(f"Dados carregados: {df_bruto.shape[0]} registros de votação")
     
-    # B. Pré-processamento
+    # --- FASE 2: PRÉ-PROCESSAMENTO ---
     print("\n" + "="*60)
     print("FASE 2: PRÉ-PROCESSAMENTO")
     print("="*60 + "\n")
@@ -341,26 +337,52 @@ def main():
     matriz_votacoes = pre_processar(df_bruto)
     print(f"Matriz criada: {matriz_votacoes.shape}")
     
-    # C. Análise Descritiva
+    # Análise Descritiva e Normalização
     stats = analisar_variancia(matriz_votacoes)
-    
-    # D. Normalização
     dados_normalizados = normalizar_dados(matriz_votacoes)
     
-    # E. Validação e Otimização
+    # --- FASE 3: OTIMIZAÇÃO DO K ---
     print("\n" + "="*60)
     print("FASE 3: OTIMIZAÇÃO DO K")
     print("="*60)
     
     k_otimo, metricas = encontrar_k_otimo_melhorado(dados_normalizados, max_k=10)
     
-    # F. Cálculo da Aderência Ideológica
-    df_resultados = calcular_aderencia_ideologica(dados_normalizados, 
-                                                   matriz_votacoes, k_otimo)
-    
-    # G. Resultados
+    # --- FASE 4: DECISÃO MANUAL DO K ---
     print("\n" + "="*60)
-    print("RESULTADOS FINAIS")
+    print("FASE 4: DECISÃO DO K FINAL")
+    print("="*60 + "\n")
+    
+    k_sugerido = k_otimo
+    k_final = k_sugerido # Valor padrão
+    
+    k_input_usuario = input(f">>> O K sugerido é {k_sugerido}. Pressione ENTER para aceitar ou digite um valor manual: ")
+    
+    if k_input_usuario.strip(): # Verifica se o usuário digitou algo
+        try:
+            k_manual = int(k_input_usuario)
+            if k_manual >= 2: # K deve ser 2 ou mais
+                k_final = k_manual
+                print(f"--- Valor de K alterado manualmente para {k_final} ---")
+            else:
+                print(f"Valor '{k_manual}' é inválido (deve ser >= 2). Usando K sugerido: {k_sugerido}")
+        except ValueError:
+            print(f"Entrada '{k_input_usuario}' não é um número. Usando K sugerido: {k_sugerido}")
+    else:
+        print(f"--- K sugerido ({k_sugerido}) aceito ---")
+    
+    # --- FASE 5: CÁLCULO DA ADERÊNCIA IDEOLÓGICA ---
+    print(f"\n{'='*60}")
+    print(f"FASE 5: CLUSTERING FINAL COM K={k_final}")
+    print(f"{'='*60}\n")
+    
+    df_resultados = calcular_aderencia_ideologica(dados_normalizados, 
+                                                   matriz_votacoes, 
+                                                   k_final) # Usa o K decidido
+    
+    # --- FASE 6: RESULTADOS FINAIS ---
+    print("\n" + "="*60)
+    print("FASE 6: RESULTADOS FINAIS")
     print("="*60 + "\n")
     
     print("Top 15 Parlamentares Mais Alinhados:")
@@ -374,12 +396,39 @@ def main():
     ].to_string(index=False))
     
     # Salvar resultados
-    df_resultados.to_csv("resultados_aderencia_ideologica.csv", index=False)
-    print("\n\nResultados salvos em 'resultados_aderencia_ideologica.csv'")
+    
+    print("\n\nOrdenando resultados por cluster e salvando...")
+    
+    df_resultados_ordenado = df_resultados.sort_values(
+        by=['cluster', 'aderencia_ideologica'], 
+        ascending=[True, False]
+    )
+    
+    # [MODIFICAÇÃO AQUI] Adiciona encoding para Excel
+    df_resultados_ordenado.to_csv(
+        "resultados_aderencia_ideologica.csv", 
+        sep=";",
+        index=False, 
+        encoding='utf-8-sig'
+    )
+    
+    print("Resultados salvos em 'resultados_aderencia_ideologica.csv'")
+
 
 if __name__ == "__main__":
+    # Esta parte permite que o script ainda seja executável sozinho
+    # para fins de teste, usando um período padrão.
+    
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 1000)
     pd.set_option('display.max_rows', None)
     
-    main()
+    # --- Configuração Padrão (apenas se rodar este script direto) ---
+    ANO_INICIO_PADRAO = 2023
+    ANO_FIM_PADRAO = 2024
+    NOME_ARQUIVOK_PADRAO = f"dataset_votacoes_senado_{ANO_INICIO_PADRAO}_a_{ANO_FIM_PADRAO}_FILTRADO.csv"
+    # -----------------------------------------------------------------
+    
+    print("--- Executando 'analise_votacoes_kmeans.py' em modo standalone ---")
+    # (Nota: O coletor não será executado. Este modo assume que o arquivo já existe)
+    executar_analise_pipeline(NOME_ARQUIVOK_PADRAO)
