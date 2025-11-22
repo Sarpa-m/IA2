@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -116,6 +117,23 @@ def normalizar_dados(matriz: pd.DataFrame) -> np.ndarray:
           f"std={dados_normalizados.std():.6f}")
     return dados_normalizados
 
+
+def aplicar_pca(matriz_dados, variancia_alvo: float = 0.95):
+    """
+    Aplica PCA para reduzir o ruído e a dimensionalidade excessiva.
+    Retorna (dados_reduzidos, pca_model).
+    """
+    print(f"\n[METODOLOGIA] Aplicando PCA (Preservando {variancia_alvo*100}% da variância)...")
+    pca = PCA(n_components=variancia_alvo, random_state=42)
+    dados_pca = pca.fit_transform(matriz_dados)
+
+    # Informações úteis
+    n_original = getattr(matriz_dados, 'shape', (None, None))[1]
+    n_reduzido = dados_pca.shape[1]
+    print(f"Dimensões originais: {n_original} votações")
+    print(f"Dimensões reduzidas (PCA): {n_reduzido} componentes principais")
+    return dados_pca, pca
+
 # ============================================================================
 # C. VALIDAÇÃO E OTIMIZAÇÃO 
 # ============================================================================
@@ -155,7 +173,7 @@ def plotar_metricas_validacao(k_range: range, metricas: dict):
     axes[1, 1].grid(True, linestyle='--', alpha=0.6)
     
     plt.suptitle('Métricas de Validação de Clustering', fontsize=14, fontweight='bold')
-    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.tight_layout(rect=(0, 0.03, 1, 0.97))
     plt.savefig("validacao_k_otimo_completa.png", dpi=300, bbox_inches='tight')
     print("Gráfico de validação salvo como 'validacao_k_otimo_completa.png'")
     plt.show()
@@ -340,13 +358,14 @@ def executar_analise_pipeline(nome_arquivo_dados: str):
     # Análise Descritiva e Normalização
     stats = analisar_variancia(matriz_votacoes)
     dados_normalizados = normalizar_dados(matriz_votacoes)
-    
+    # Aplicar PCA para reduzir dimensionalidade e ruído antes do K-Means
+    dados_processados, pca_model = aplicar_pca(dados_normalizados, variancia_alvo=0.95)
     # --- FASE 3: OTIMIZAÇÃO DO K ---
     print("\n" + "="*60)
     print("FASE 3: OTIMIZAÇÃO DO K")
     print("="*60)
     
-    k_otimo, metricas = encontrar_k_otimo_melhorado(dados_normalizados, max_k=10)
+    k_otimo, metricas = encontrar_k_otimo_melhorado(dados_processados, max_k=10)
     
     # --- FASE 4: DECISÃO MANUAL DO K ---
     print("\n" + "="*60)
@@ -376,7 +395,7 @@ def executar_analise_pipeline(nome_arquivo_dados: str):
     print(f"FASE 5: CLUSTERING FINAL COM K={k_final}")
     print(f"{'='*60}\n")
     
-    df_resultados = calcular_aderencia_ideologica(dados_normalizados, 
+    df_resultados = calcular_aderencia_ideologica(dados_processados, 
                                                    matriz_votacoes, 
                                                    k_final) # Usa o K decidido
     
@@ -416,9 +435,7 @@ def executar_analise_pipeline(nome_arquivo_dados: str):
 
 
 if __name__ == "__main__":
-    # Esta parte permite que o script ainda seja executável sozinho
-    # para fins de teste, usando um período padrão.
-    
+   
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 1000)
     pd.set_option('display.max_rows', None)
@@ -430,5 +447,4 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------
     
     print("--- Executando 'analise_votacoes_kmeans.py' em modo standalone ---")
-    # (Nota: O coletor não será executado. Este modo assume que o arquivo já existe)
     executar_analise_pipeline(NOME_ARQUIVOK_PADRAO)

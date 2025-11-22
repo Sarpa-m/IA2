@@ -8,7 +8,7 @@ import pandas as pd                 # Para as configurações do pandas
 #
 # Defina o intervalo de anos desejado APENAS AQUI.
 #
-ANO_INICIO = 2019
+ANO_INICIO = 2023 
 ANO_FIM = 2023
 
 
@@ -30,7 +30,7 @@ def executar_orquestrador():
     nome_arquivo = f"dataset_votacoes_senado_{ANO_INICIO}_a_{ANO_FIM}_FILTRADO.csv"
     
     # 2. Verificar se o arquivo existe
-    if not os.path.exists(nome_arquivo):
+    """     if not os.path.exists(nome_arquivo):
         print(f"\n[FASE 1] Dataset '{nome_arquivo}' não encontrado.")
         print("--- Executando o Coletor de Dados (isso pode levar um tempo) ---")
         
@@ -40,8 +40,21 @@ def executar_orquestrador():
         print("--- Coleta de Dados Concluída ---")
     else:
         print(f"\n[FASE 1] Dataset '{nome_arquivo}' já existe.")
-        print("--- Pulando a Coleta de Dados ---")
+        print("--- Pulando a Coleta de Dados ---") """
 
+
+
+    print(f"\n[FASE 1] Dataset '{nome_arquivo}' não encontrado.")
+    print("--- Executando o Coletor de Dados (isso pode levar um tempo) ---")
+    
+    # Chama a função principal do coletor
+    coletor_senado.executar_pipeline_coleta(ANO_INICIO, ANO_FIM)
+    
+    print("--- Coleta de Dados Concluída ---")
+    
+    
+    
+    
     # 3. Executar a análise
     print(f"\n[FASE 2] Executando a Análise K-Means no arquivo '{nome_arquivo}'...")
     

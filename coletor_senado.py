@@ -2,6 +2,7 @@
 import requests
 import pandas as pd
 import time
+import math
 from datetime import datetime
 import re # Importa regex para filtragem
 
@@ -48,7 +49,7 @@ def coletar_votacoes_eficiente(data_inicio, data_fim):
                 n_secretas_puladas += 1
                 continue 
 
-            # [MODIFICADO] Coleta os metadados da votação
+            # Coleta os metadados da votação
             codigo_votacao = votacao.get("codigoSessaoVotacao")
             data_votacao = votacao.get("dataSessao")
             # Adiciona a descrição e identificação para o filtro de mérito
@@ -82,37 +83,34 @@ def coletar_votacoes_eficiente(data_inicio, data_fim):
 
         return pd.DataFrame(todos_os_votos)
 
+    except requests.exceptions.JSONDecodeError as e:
+        print("Erro: A resposta da API não foi um JSON válido. Verifique os parâmetros.")
+        return None
     except requests.exceptions.RequestException as e:
         print(f"Erro fatal de conexão ao buscar votações: {e}")
-        return None
-    except requests.exceptions.JSONDecodeError:
-        print("Erro: A resposta da API não foi um JSON válido. Verifique os parâmetros.")
         return None
     except Exception as e:
         print(f"Um erro inesperado ocorreu: {e}")
         return None
 
-# [FUNÇÃO MODIFICADA]
+
 def filtrar_dataset_inteligente(df_total: pd.DataFrame, min_presenca_percent: float = 0.5) -> pd.DataFrame:
     """
     Aplica filtros inteligentes ao dataset completo, conforme metodologia do artigo.
-    1. [NOVO] Remove votações procedimentais/regimentais (ruído).
+    1. Remove votações procedimentais/regimentais (ruído).
     2. Remove votações unânimes (sem variância).
     3. Remove parlamentares com baixa frequência.
     """
     
     print("\n--- Iniciando Filtragem Inteligente ---")
 
-    # --- 1. [NOVO FILTRO CRÍTICO] Remover Votações Procedimentais ---
-    # Esta é a implementação do "passo crítico" do artigo [cite: 49]
+    # --- 1. Remover Votações Procedimentais ---
     print("Filtrando votações procedimentais (mantendo apenas mérito)...")
     
     # Palavras-chave que indicam votação não-substantiva (regimental/procedural)
     # Esta lista é uma aproximação baseada em "táticas regimentares" 
     PALAVRAS_CHAVE_PROCEDIMENTAIS = [
-        'requerimento', 'urgência', 'destaque', 'regime de urgência',
-        'votação em globo', 'adiamento', 'redação final', 
-        'parecer da comissão', 'questão de ordem', 'procedimento'
+         'questão de ordem', 'procedimento'
     ]
     # Compila a regex (ignore case)
     regex_filtro = re.compile('|'.join(PALAVRAS_CHAVE_PROCEDIMENTAIS), re.IGNORECASE)
@@ -165,9 +163,11 @@ def filtrar_dataset_inteligente(df_total: pd.DataFrame, min_presenca_percent: fl
     
     total_votacoes_unicas = df_filtrado['codigo_votacao'].nunique()
     limite_sessoes = total_votacoes_unicas * min_presenca_percent
-    
+   
+    limite_sessoes_int = math.ceil(limite_sessoes)
+
     sessoes_por_senador = df_filtrado.groupby('codigo_parlamentar')['codigo_votacao'].nunique()
-    senadores_ativos = sessoes_por_senador[sessoes_por_senador >= limite_sessoes].index
+    senadores_ativos = sessoes_por_senador[sessoes_por_senador >= limite_sessoes_int].index
     
     n_senadores_antes = df_total['codigo_parlamentar'].nunique()
     df_final = df_filtrado[df_filtrado['codigo_parlamentar'].isin(senadores_ativos)]
@@ -177,7 +177,7 @@ def filtrar_dataset_inteligente(df_total: pd.DataFrame, min_presenca_percent: fl
     print("--- Filtragem Inteligente Concluída ---")
     
     # Limpa as colunas de texto que não são mais necessárias
-    df_final = df_final.drop(columns=['descricao_votacao', 'identificacao_materia', 'texto_busca'], errors='ignore')
+    df_final = df_final.drop(columns=[ 'texto_busca'], errors='ignore')
     
     return df_final
 
@@ -210,10 +210,12 @@ def executar_pipeline_coleta(ano_inicio: int, ano_fim: int):
     print(f"Total de registros de votos coletados: {len(df_total)}")
 
     df_filtrado = filtrar_dataset_inteligente(df_total, min_presenca_percent=0.5)
-
+   
     if df_filtrado.empty:
         print("Nenhum dado restou após a filtragem. Nenhum arquivo será salvo.")
         return
+    
+    
 
     nome_arquivo = f"dataset_votacoes_senado_{ano_inicio}_a_{ano_fim}_FILTRADO.csv"
     # Salva com encoding correto para Excel
@@ -229,13 +231,10 @@ def executar_pipeline_coleta(ano_inicio: int, ano_fim: int):
     print(df_filtrado.head())
 
 
-# --- Execução do Script ---
+
 if __name__ == "__main__":
     
-    # Esta parte permite que o script ainda seja executável sozinho
-    # para fins de teste, usando um período padrão.
-    
-    # --- Configuração Padrão (apenas se rodar este script direto) ---
+  
     ANO_INICIO_PADRAO = 2023
     ANO_FIM_PADRAO = 2024
     # -----------------------------------------------

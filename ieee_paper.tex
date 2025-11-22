@@ -1,0 +1,307 @@
+\documentclass[conference]{IEEEtran}
+
+% Pacotes essenciais
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{float}    % Permite usar o [H] para fixar tabelas
+\usepackage{booktabs} % Melhora a estética das tabelas (linhas horizontais bonitas)
+
+
+% --- Bloco de Preâmbulo (Codificação e Idioma para pdfTeX) ---
+% Pacotes para compatibilidade com pdfLaTeX (compilador padrão)
+\usepackage[utf8]{inputenc} % Permite caracteres acentuados
+\usepackage[T1]{fontenc}    % Codificação de fonte correta
+
+% Configura o idioma principal (português do Brasil)
+\usepackage[brazilian]{babel}
+
+% Garante que as listas (itemize) funcionem corretamente
+\usepackage{enumitem}
+\setlist[itemize]{label=-}
+
+
+
+% --- Fim do Bloco ---
+
+% Hyperref é recomendado e deve ser um dos últimos pacotes a serem carregados
+\usepackage{hyperref} 
+
+% --- Dados do Artigo ---
+\title{ANÁLISE DE VOTAÇÃO PARLAMENTAR COM INTELIGÊNCIA ARTIFICIAL: ADERÊNCIA IDEOLÓGICA}
+
+\author{
+    \IEEEauthorblockN{Sarpa, Mauricio}
+    \IEEEauthorblockA{\textit{Engenharia da Computação} \\
+    \textit{Fundação Hermínio Ometto}\\
+    Araras, Brasil\\
+    sarpa@alunos.fho.edu.br}
+    \and
+    \IEEEauthorblockN{Ramos Novais, Pablo}
+    \IEEEauthorblockA{\textit{Engenharia da Computação} \\
+    \textit{Fundação Hermínio Ometto}\\
+    Araras, Brasil\\
+    pablo@alunos.fho.edu.br}
+}
+% -------------------------
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+A análise da votação nominal no legislativo é crucial para a transparência. Contudo, a coerência de voto é complexa devido à \textbf{politização} dos temas. Métodos estatísticos tradicionais têm limitações em capturar a natureza multifatorial dessas decisões.Propomos o desenvolvimento de um sistema de Inteligência Artificial para comparar o voto real de deputados e senadores com um voto esperado, inferido por sua classificação política. A principal contribuição é um algoritmo que quantifica a \textbf{aderência ideológica e partidária}, oferecendo uma métrica contínua e objetiva sobre a coerência política no legislativo brasileiro.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Inteligência Artificial, Ciência Política, Análise de Voto, Politização, Machine Learning.
+\end{IEEEkeywords}
+
+\section{Introdução}
+\label{sec:introduction}
+
+A análise da \textbf{votação nominal} em casas legislativas é fundamental para a \textbf{transparência política} e a mensuração da ideologia parlamentar. Contudo, a efetiva coerência de voto é frequentemente desafiada pela \textbf{politização} dos temas, que eleva o debate da esfera técnica para a \textbf{esfera ideológica e partidária}, influenciando diretamente a disciplina de voto e o alinhamento esperado \cite{ribeiro2023}.
+
+Os métodos estatísticos tradicionais, como o uso de Componentes Principais \cite{leite2016}, têm limitações em capturar essa complexidade e a natureza multifatorial das decisões legislativas, especialmente com o grande volume de \textbf{dados abertos} disponíveis \cite{lima2023}. Motivado por essa lacuna, este projeto propõe o uso de \textbf{Inteligência Artificial (IA)} e \textit{Machine Learning} para desenvolver ferramentas analíticas mais robustas.
+
+Nosso objetivo central é criar um sistema de IA que \textbf{compare o voto real} dos deputados e senadores com um \textbf{voto esperado}, inferido a partir da sua classificação política e ideológica, mensurando a influência da politização no comportamento legislativo. A principal \textbf{contribuição} deste trabalho reside na criação de um \textbf{algoritmo de classificação} que oferece uma métrica objetiva e contínua para quantificar a \textbf{aderência ideológica/partidária} dos representantes, fornecendo uma nova lente para entender a dinâmica de conflito e a coerência política no legislativo brasileiro.
+
+\section{Trabalhos Relacionados}
+\label{sec:related_work}
+
+A análise quantitativa de votações nominais constitui o alicerce para a mensuração da ideologia e da disciplina partidária no legislativo. Historicamente, o \textit{state of the art} nesse campo se concentra em métodos de redução de dimensionalidade para mapear as posições ideológicas dos parlamentares em um espaço de baixa dimensão.
+
+\subsection{Modelos Clássicos e Votações Nominais}
+Uma das abordagens mais consolidadas na literatura brasileira é o uso da Análise de Componentes Principais (ACP), ou PCA. Leite e Trento \cite{leite2016} descrevem e validam o PCA para a análise de votações nominais no Brasil, um contexto onde as abstenções e as análises agregadas por partido são cruciais. Os autores demonstram a eficácia do PCA em relação ao modelo W-NOMINATE, estabelecendo o tratamento dos votos (`+1` para sim, `-1` para não, `0` para neutro) como um padrão robusto para a construção de matrizes de votação, o mesmo esquema adotado neste trabalho.
+
+Embora o PCA seja eficaz para posicionar os parlamentares em um espectro ideológico, sua limitação reside na capacidade de capturar a dinâmica da coesão e da indisciplina de voto, especialmente em cenários de alta \textbf{politização} \cite{ribeiro2023}. Buscando aprimorar a identificação desses padrões, Kreuch \cite{kreuch2024} explora o uso de outras técnicas de redução de dimensionalidade (como MDS, t-SNE e UMAP) combinadas com algoritmos de agrupamento mais avançados (como HDBSCAN e Propagação por Afinidade) para identificar a formação de coalizões e a evolução dos agrupamentos ideológicos ao longo do tempo. Esse trabalho reforça a relevância das técnicas de \textit{clustering} para a análise de coesão, premissa fundamental para a metodologia proposta.
+
+\subsection{Análise de Conteúdo e a Lacuna da Aderência}
+O debate sobre a verdadeira natureza da ideologia parlamentar levou a estudos que buscam mensurá-la a partir de fontes alternativas. Lima \cite{lima2023} utiliza o Processamento de Linguagem Natural (PLN) e \textit{Machine Learning} para analisar as relações entre partidos e a coesão ideológica baseada em \textbf{discursos} no Congresso Nacional. A motivação para analisar discursos reside na premissa de que a linguagem utilizada pode revelar diferenças intrapartidárias e ideológicas que são mascaradas pela disciplina partidária nos votos nominais.
+
+Neste contexto, o presente trabalho se insere na lacuna identificada pela literatura. Enquanto os modelos existentes focam em \textit{descrever} o voto real (PCA) ou em inferir a ideologia a partir de \textit{discursos} (PLN), inexiste uma métrica contínua e objetiva que \textbf{quantifique a aderência} de um parlamentar ao seu \textbf{voto esperado} ou ideal. Propomos, portanto, um algoritmo que utiliza o K-means não apenas para mapear, mas para \textbf{modelar o voto ideal} de cada agrupamento, permitindo a comparação direta com o voto real do indivíduo. Essa abordagem inova ao fornecer um indicador direto e contínuo da coerência política e da influência da \textbf{politização} na tomada de decisão.
+
+\section{Metodologia Proposta}
+\label{sec:metodologia}
+A metodologia deste trabalho é estruturada em um pipeline de ciência de dados, compreendendo a aquisição e tratamento dos dados, a aplicação de um modelo de aprendizado não supervisionado para identificação de padrões e, por fim, a validação rigorosa dos resultados obtidos.
+
+\subsection{Coleta e Estruturação dos Dados}
+A fonte primária de dados é a API de Dados Abertos do Senado Federal, que disponibiliza o histórico de votações em formato JSON. O processo de coleta é realizado de forma programática, seguindo uma sequência de requisições para obter os votos individuais de cada senador em cada votação. Primeiramente, os dados brutos são transformados em uma \textbf{matriz senador-votação}, na qual cada linha representa um senador e cada coluna, uma votação específica.
+
+Os valores categóricos dos votos ('Sim', 'Não', 'Abstenção', etc.) são convertidos para um formato numérico, seguindo um esquema de codificação consolidado na análise legislativa brasileira \cite{leite2016}:
+\begin{itemize}
+    \item \textbf{Sim:} +1
+    \item \textbf{Não:} -1
+    \item \textbf{Abstenção, Obstrução, Ausência ou Presidente:} 0
+\end{itemize}
+
+% --- INSERÇÃO: Justificativa da Não-Normalização ---
+Diferentemente de abordagens tradicionais que aplicam normalização (como Z-score) aos dados, optou-se por utilizar os valores brutos da codificação proposta. Esta decisão fundamenta-se na necessidade de preservar o valor zero como um ponto fixo de neutralidade (abstenção ou ausência), garantindo que a interpretação geométrica da distância em relação à origem permaneça semânticamente coerente com a posição de não-voto.
+
+Um passo crítico no pré-processamento é a filtragem das votações. Seguindo a recomendação de Ribeiro (2023), apenas votações \textbf{substantivas} (de mérito) são mantidas, enquanto votações puramente \textbf{procedimentais} são descartadas. Essa distinção é crucial para evitar que o modelo agrupe os parlamentares com base em táticas regimentares (ruído) em vez de seus posicionamentos ideológicos (sinal) \cite{ribeiro2023}.
+
+% --- INSERÇÃO: Filtros de Unanimidade e Assiduidade ---
+Adicionalmente, foram aplicados dois critérios de filtragem para garantir a qualidade estatística da matriz de dados. Primeiro, foram excluídas as votações unânimes, uma vez que a ausência de variância nesses registros não contribui para a discriminação de agrupamentos (clusters). Segundo, estabeleceu-se um critério de assiduidade mínima: parlamentares com participação inferior a 50\% nas votações do período analisado foram removidos da amostra. Esta medida visa mitigar a esparsidade excessiva dos vetores de votação, que poderia introduzir ruído no cálculo das distâncias euclidianas.
+
+\subsection{Modelo de Agrupamento: K-Means}
+Para identificar os agrupamentos latentes de senadores, foi selecionado o algoritmo de clusterização \textbf{K-means}, um método de aprendizado não supervisionado. O K-means particiona o conjunto de dados em $K$ clusters distintos, buscando minimizar a inércia, também conhecida como Soma dos Quadrados Dentro do Cluster (WCSS - \textit{Within-Cluster Sum of Squares}). A inércia é definida como:
+$$\sum_{i=0}^{n} \min_{\mu_j \in C} (||x_i - \mu_j||^2)$$
+onde $x_i$ é o vetor de votos de um senador e $\mu_j$ é o centróide (ponto médio) do cluster $C_j$.
+
+O algoritmo opera iterativamente em duas etapas:
+\begin{enumerate}
+    \item \textbf{Atribuição:} Cada senador (ponto de dado) é atribuído ao cluster cujo centróide é o mais próximo, com base na distância euclidiana.
+    \item \textbf{Atualização:} O centróide de cada cluster é recalculado como a média dos vetores de todos os senadores atribuídos a ele.
+\end{enumerate}
+Essas etapas são repetidas até a convergência, quando as atribuições de cluster não se alteram mais. Para a inicialização dos centróides, utiliza-se o método \textit{K-means++}, que melhora a qualidade dos resultados e acelera a convergência.
+
+\subsection{Validação e Otimização do Modelo}
+A escolha do número ótimo de clusters ($K$) é um parâmetro fundamental e não arbitrário.
+% --- SUBSTITUIÇÃO: Validação por Ensemble ---
+A determinação do número ótimo de clusters ($K$) não se baseou em uma única métrica. Adotou-se uma abordagem de validação cruzada por múltiplos índices para mitigar vieses específicos de cada algoritmo. Além do Método do Cotovelo e da Análise de Silhueta, foram calculados os índices Davies-Bouldin (onde menores valores indicam melhor separação) e Calinski-Harabasz (onde maiores valores indicam clusters mais densos).
+
+O valor final de $K$ foi definido através de um sistema de consenso (votação majoritária) entre as métricas sugeridas por cada índice, selecionando o número de agrupamentos que apresentou maior estabilidade entre os diferentes métodos de avaliação.
+
+\subsection{Algoritmo de Classificação para Aderência Ideológica}
+A principal contribuição deste trabalho reside no desenvolvimento de um algoritmo que transforma a saída do modelo K-means (o agrupamento ideológico) em uma métrica de \textbf{Aderência Ideológica} ($\text{AI}$) contínua e interpretável.
+
+\subsubsection{Definição do Voto Esperado}
+Após a clusterização da matriz senador-votação pelo K-means, cada um dos $K$ clusters ($C_j$) representa uma \textbf{posição ideológica latente}. O centróide do cluster ($\mu_j$) corresponde ao vetor de votos médios do grupo em todas as votações. Para definir o \textbf{Voto Esperado} ($\hat{v}_{j}$) desse grupo, o centróide é binarizado (ou trinarizado) por meio de um limiar ($\tau$).
+
+O \textbf{Voto Esperado do Cluster} ($\hat{v}_{j}^{(i)}$) para uma votação $i$ é dado por:
+$$
+\hat{v}_{j}^{(i)} = \begin{cases} 
++1 & \text{se } \mu_j^{(i)} > \tau \\ 
+-1 & \text{se } \mu_j^{(i)} < -\tau \\ 
+0 & \text{se } -\tau \le \mu_j^{(i)} \le \tau 
+\end{cases}
+$$
+% --- ATUALIZAÇÃO: Tau = 0.1 ---
+onde $\tau$ é um limiar de neutralidade definido empiricamente neste estudo como $\tau=0.1$. Este limiar estabelece uma zona de neutralidade mais robusta, assegurando que apenas tendências majoritárias claras no cluster sejam classificadas como Voto Esperado (+1 ou -1), enquanto médias próximas a zero (indicativas de dispersão interna no grupo) permanecem classificadas como neutras.
+
+\subsubsection{Cálculo da Aderência Ideológica ($\text{AI}$)}
+A métrica $\text{AI}$ quantifica a coerência do senador $i$ em relação à posição ideológica ideal de seu grupo $C_{\text{ideal}}$. Essa aderência é calculada utilizando a \textbf{Similaridade de Cosseno} entre o vetor de voto real do senador ($x_i$) e o vetor de voto esperado de seu cluster ($\hat{v}_{\text{ideal}}$), sendo o cluster $C_{\text{ideal}}$ aquele ao qual o senador foi atribuído pelo K-means.
+
+A Similaridade de Cosseno é definida como:
+$$
+\text{AI}_i = \text{Similaridade}(\mathbf{x}_i, \mathbf{\hat{v}}_{\text{ideal}}) = \frac{\mathbf{x}_i \cdot \mathbf{\hat{v}}_{\text{ideal}}}{\|\mathbf{x}_i\| \|\mathbf{\hat{v}}_{\text{ideal}}\|}
+$$
+O resultado é um valor contínuo que varia de -1 (totalmente oposto ao voto esperado) a +1 (aderência perfeita), oferecendo um índice robusto de quão bem o parlamentar se alinha ao seu agrupamento ideológico.
+
+\section{Resultados e Discussão}
+
+A aplicação do pipeline de orquestração permitiu processar os dados de votações nominais do Senado Federal referente ao ano de 2023. A seguir, detalham-se as etapas de redução de dimensionalidade, a determinação do número ótimo de clusters e a análise aprofundada da aderência ideológica.
+
+\subsection{Pré-processamento e Redução de Dimensionalidade}
+
+A coleta inicial retornou 141 votações. Após a filtragem metodológica — removendo votações de homenagens, pesar e aquelas com unanimidade (baixa variância) —, restaram 35 votações significativas para a análise. O dataset final contou com 81 senadores ativos (participação superior a 50\%).
+
+A análise descritiva revelou uma esparsidade de 17,60\%, indicando um preenchimento consistente da matriz de votos. A aplicação da Análise de Componentes Principais (PCA) reduziu as 35 dimensões originais (votações) para 19 componentes principais, preservando 95\% da variância explicada dos dados.
+
+\subsection{Determinação do Número de Clusters (K)}
+
+Para definir o número ideal de agrupamentos, o algoritmo K-Means foi executado com $K$ variando de 2 a 10. As métricas de validação são detalhadas na Tabela \ref{tab:metrics} e visualizadas na Figura \ref{fig:validacao}.
+
+\begin{table}[H]
+\caption{Métricas de Validação para Diferentes Valores de K}
+\begin{center}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{K} & \textbf{Inércia} & \textbf{Silhueta} & \textbf{Davies-Bouldin} \\
+\hline
+2 & 1671.65 & \textbf{0.3205} & \textbf{1.2530} \\
+3 & 1375.97 & 0.2439 & 1.4711 \\
+4 & 1253.96 & 0.1948 & 1.7596 \\
+5 & 1190.74 & 0.1977 & 1.7831 \\
+\hline
+\end{tabular}
+\label{tab:metrics}
+\end{center}
+\end{table}
+
+\begin{figure}[H]
+\centerline{\includegraphics[width=0.48\textwidth]{validacao_k_otimo_completa.png}}
+\caption{Comportamento das métricas de validação. Nota-se que K=3 mantém estabilidade antes da queda acentuada de desempenho em K=4.}
+\label{fig:validacao}
+\end{figure}
+
+A análise da Figura \ref{fig:validacao} revela que, embora $K=2$ apresente os melhores indicadores absolutos (sugerindo polarização binária), a transição para $K=3$ não representa uma perda estrutural crítica. O índice de Silhueta em $K=3$ (0.2439) permanece significativamente superior ao patamar observado em $K=4$ (0.1948), onde ocorre uma degradação acentuada da coesão dos grupos.
+
+Portanto, $K=3$ configura-se como um ponto de inflexão: ele oferece uma redução substancial na Inércia (de 1671 para 1375) em comparação a $K=2$, sem sofrer a pulverização excessiva observada em $K \ge 4$. Essa característica matemática valida a escolha manual de três clusters, permitindo capturar a complexidade do espectro político (Governo, Oposição e Centro) que seria ignorada em uma abordagem puramente binária.
+
+
+
+
+\subsection{Caracterização dos Agrupamentos}
+
+Com $K=3$, os perfis foram definidos como:
+\begin{itemize}
+    \item \textbf{Cluster 0 (Governo):} 25 membros, alta coesão (Aderência média: 0.471). Predominância de PT, PSD e MDB.
+    \item \textbf{Cluster 1 (Oposição):} 27 membros, média coesão (Aderência média: 0.419). Predominância de PL, PP e Republicanos.
+    \item \textbf{Cluster 2 (Centro/Independente):} 29 membros, baixa coesão (Aderência média: 0.258). Grupo heterogêneo com membros de PSD, União e Podemos.
+\end{itemize}
+
+\subsection{Análise de Aderência Ideológica (AI)}
+
+A métrica de Aderência Ideológica (AI) permitiu classificar os senadores quanto à fidelidade ao comportamento médio de seu grupo.
+
+A Tabela \ref{tab:top_aligned} apresenta os 15 parlamentares com maior aderência. Nota-se que senadores do PP e PL dominam o topo da lista de fidelidade no Cluster 1, enquanto o PT e aliados demonstram forte alinhamento no Cluster 0. O senador Luis Carlos Heinze (PP) obteve a maior aderência absoluta (0.7588).
+
+\begin{table}[H]
+\caption{Top 15 Parlamentares com Maior Aderência}
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Parlamentar} & \textbf{Partido} & \textbf{Cluster} & \textbf{Aderência (AI)} \\
+\hline
+Luis Carlos Heinze & PP & 1 & 0.7588 \\
+Eliziane Gama & PSD & 0 & 0.6857 \\
+Wilder Morais & PL & 1 & 0.6583 \\
+Tereza Cristina & PP & 1 & 0.6564 \\
+Beto Faro & PT & 0 & 0.6560 \\
+Randolfe Rodrigues & REDE & 0 & 0.6560 \\
+Fabiano Contarato & PT & 0 & 0.6560 \\
+Paulo Paim & PT & 0 & 0.6560 \\
+Jussara Lima & PSD & 0 & 0.6534 \\
+Rogério Carvalho & PT & 0 & 0.6527 \\
+Augusta Brito & PT & 0 & 0.6477 \\
+Rogerio Marinho & PL & 1 & 0.6358 \\
+Romário & PL & 1 & 0.6209 \\
+Professora Dorinha Seabra & UNIÃO & 2 & 0.5852 \\
+Marcelo Castro & MDB & 0 & 0.5735 \\
+\hline
+\end{tabular}
+\label{tab:top_aligned}
+\end{center}
+\end{table}
+
+Por outro lado, a Tabela \ref{tab:least_aligned} destaca os parlamentares com menor aderência. É notável a presença massiva de membros do Cluster 2 (Centro) nesta lista. Senadores como Oriovisto Guimarães e Laércio Oliveira apresentaram valores de aderência negativos, indicando que seus votos frequentemente divergem do centroide do seu próprio grupo, validando a hipótese de que o "Centro" não opera como um bloco monolítico, mas sim como uma zona de convergência flutuante.
+
+\begin{table}[H]
+\caption{Top 15 Parlamentares com Menor Aderência}
+\begin{center}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Parlamentar} & \textbf{Partido} & \textbf{Cluster} & \textbf{Aderência (AI)} \\
+\hline
+Oriovisto Guimarães & PODEMOS & 2 & -0.1426 \\
+Laércio Oliveira & PP & 2 & -0.1348 \\
+Vanderlan Cardoso & PSD & 2 & -0.1241 \\
+Alan Rick & UNIÃO & 2 & -0.0243 \\
+Soraya Thronicke & UNIÃO & 2 & 0.0045 \\
+Zequinha Marinho & PL & 2 & 0.0252 \\
+Rodrigo Pacheco & PSD & 2 & 0.0745 \\
+Carlos Viana & PODEMOS & 2 & 0.0921 \\
+Styvenson Valentim & PODEMOS & 2 & 0.0938 \\
+Alessandro Vieira & PSDB & 2 & 0.1268 \\
+Marcio Bittar & UNIÃO & 1 & 0.1372 \\
+Marcos Rogério & PL & 1 & 0.1794 \\
+Marcos do Val & PODEMOS & 1 & 0.1836 \\
+Mara Gabrilli & PSD & 2 & 0.1862 \\
+Sergio Moro & UNIÃO & 1 & 0.2130 \\
+\hline
+\end{tabular}
+\label{tab:least_aligned}
+\end{center}
+\end{table}
+
+
+
+\section{Conclusão}
+\label{sec:conclusao}
+
+O presente trabalho atingiu seu objetivo central ao desenvolver e aplicar uma metodologia baseada em Inteligência Artificial para mensurar a aderência ideológica no Senado Federal. A utilização do algoritmo K-Means, combinada com métricas de validação e uma análise qualitativa do cenário político, permitiu transcender a análise puramente estatística, oferecendo uma interpretação computacional da dinâmica parlamentar.
+
+Os resultados obtidos ratificam a hipótese de que a polarização política brasileira, embora matematicamente binária (como sugerido pelos índices de Silhueta para $K=2$), exige uma modelagem tricotômica para representar a realidade fática. A decisão estratégica de fixar $K=3$ revelou-se acertada ao isolar um terceiro agrupamento ("Centro") cuja característica definidora não é a coesão, mas a dispersão. Enquanto os clusters de Governo e Oposição apresentaram altas taxas de aderência ideológica (médias de 0.47 e 0.41, respectivamente), o Cluster 2 demonstrou uma aderência significativamente menor (0.25) e diversos valores negativos. Isso valida computacionalmente o conceito de "Centrão" como uma zona de convergência flutuante, e não como um bloco ideológico monolítico.
+
+A principal contribuição técnica deste estudo é a formalização da métrica de \textbf{Aderência Ideológica (AI)}. Ao quantificar a fidelidade do parlamentar em uma escala contínua, o sistema oferece uma ferramenta objetiva para identificar tanto os líderes de núcleo duro (como demonstrado no Cluster 1) quanto os parlamentares pendulares.
+
+\subsection{Limitações e Desafios}
+Uma limitação inerente ao estudo foi definir o limiar de neutralidade ($\tau$) e a escolha do número de clusters exigiu uma intervenção humana supervisionada sobre o modelo não supervisionado. Embora matematicamente justificada pela estabilidade da silhueta em $K=3$, essa etapa sublinha que a IA, neste contexto, atua melhor como uma ferramenta de suporte à decisão do analista político do que como um oráculo totalmente autônomo.
+
+\subsection{Trabalhos Futuros}
+Para extensões futuras, sugere-se a aplicação desta metodologia em uma série temporal longitudinal, abrangendo múltiplas legislaturas, para visualizar a migração de parlamentares entre clusters (mudança de aderência) ao longo do tempo. Outra via promissora é a integração de técnicas de Processamento de Linguagem Natural (PLN) para correlacionar a aderência ideológica votada (o que o senador faz) com a aderência discursiva (o que o senador fala em tribuna), permitindo identificar dissonâncias entre o discurso e a prática legislativa.
+
+Em suma, a ferramenta desenvolvida demonstra que a aplicação de aprendizado de máquina em dados governamentais abertos é um caminho viável e robusto para aumentar a transparência e a compreensibilidade do complexo jogo democrático.
+
+% --- REFERÊNCIAS ---
+\begin{thebibliography}{9}
+
+\bibitem{ribeiro2023}
+RIBEIRO, T. D. \textit{Por que um deputado é indisciplinado?: uma análise das votações nominais na câmara dos deputados entre os anos de 2015 e 2022}. 2023. Dissertação (Mestrado em Administração Pública) – Instituto Brasileiro de Ensino, Desenvolvimento e Pesquisa, Brasília, 2023.
+
+\bibitem{leite2016}
+LEITE, L.; TRENTO, S. Análise de votações nominais do legislativo brasileiro utilizando componentes principais. \textit{Leviathan: Cadernos de Pesquisa Política}, n. 12, p. 120-163, 2016.
+
+\bibitem{lima2023}
+LIMA, W. P. C. \textit{Uma análise de partidos políticos baseada em discursos no congresso nacional brasileiro}. 2023. Dissertação (Mestrado em Ciência da Computação) – Centro Federal de Educação Tecnológica Celso Suckow da Fonseca, Rio de Janeiro, 2023.
+
+\bibitem{rousseeuw1987}
+ROUSSEEUW, P. J. Silhouettes: a Graphical Aid to the Interpretation and Validation of Cluster Analysis. \textit{Journal of Computational and Applied Mathematics}, v. 20, p. 53-65, 1987.
+
+\bibitem{kreuch2024}
+KREUCH, M. A. \textit{Desenvolvimento de solução para visualização e análise de votações políticas}. 2024. Trabalho de Conclusão de Curso (Graduação em Ciências da Computação) – Universidade Federal de Santa Catarina, Florianópolis, 2024.
+
+\end{thebibliography}
+
+\end{document}
